@@ -1,6 +1,5 @@
 import mysql.connector as mysql
 
-
 class DbConnector:
     """
     Connects to the MySQL server on the Ubuntu virtual machine.
