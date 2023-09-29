@@ -67,7 +67,6 @@ class Connection:
     def insert_row(self, table_name, cols, values):
         #query = "INSERT INTO %s (name) VALUES ('%s')"
         query = "".join(["INSERT INTO ", table_name, " (", ', '.join(cols), ") VALUES (", ', '.join(values), ")"])
-        print(query)
         self.cursor.execute(query)
         self.db_connection.commit()
 
@@ -77,7 +76,7 @@ def main():
     connection.drop_table_lazy("Activity")
     connection.drop_table_lazy("User")
     connection.create_tables()
-    connection.show_tables()
+    #connection.show_tables()
 
 
 if __name__ == '__main__':
