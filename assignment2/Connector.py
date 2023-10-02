@@ -1,13 +1,11 @@
-from DbConnector import DbConnector
 from tabulate import tabulate
+from sqlalchemy import create_engine, text
 
 
 class Connection:
     def __init__(self):
-        self.connection = DbConnector()
-        self.db_connection = self.connection.db_connection
-        self.cursor = self.connection.cursor
-
+        self.engine = create_engine('mysql+mysqlconnector://and:123@localhost:3306/gps',
+                                    echo=False)  # engine = create_engine('dialect+driver://username:password@host:port/database', echo=False)
 
     def create_tables(self):
         queries = []
@@ -40,35 +38,41 @@ class Connection:
                             REFERENCES Activity(id)
                             ON DELETE CASCADE)
         """)
+        connection = self.engine.connect()
+        trans = connection.begin()
         for q in queries:
-            self.cursor.execute(q)
-        self.db_connection.commit()
-
+            connection.execute(text(q))
+        trans.commit()
 
     def show_tables(self):
-        self.cursor.execute("SHOW TABLES")
-        rows = self.cursor.fetchall()
-        print(tabulate(rows, headers=self.cursor.column_names))
+        result = self.engine.connect().execute("SHOW TABLES")
+        print(tabulate(result, headers=self.cursor.column_names))
 
     """
     Drops the table if it can, ignores it if not, only for testing purposes
     Do not use in finished program
     """
+
     def drop_table_lazy(self, table_name):
         try:
+            connection = self.engine.connect()
+            trans = connection.begin()
             print("Dropping table %s..." % table_name)
-            query = "DROP TABLE %s"
-            self.cursor.execute(query % table_name)
-            self.db_connection.commit()
+            query = "DROP TABLE {0}".format(table_name)
+            connection.execute(text(query))
+            trans.commit()
         except:
             print("Could not drop table " + table_name)
 
-    # insert into User (id, has_labels) Values (1,False);
     def insert_row(self, table_name, cols, values):
-        #query = "INSERT INTO %s (name) VALUES ('%s')"
-        query = "".join(["INSERT INTO ", table_name, " (", ', '.join(cols), ") VALUES (", ', '.join(values), ")"])
-        self.cursor.execute(query)
-        self.db_connection.commit()
+        try:
+            connection = self.engine.connect()
+            trans = connection.begin()
+            query = "".join(["INSERT INTO ", table_name, " (", ', '.join(cols), ") VALUES (", ', '.join(values), ")"])
+            connection.execute(text(query))
+            trans.commit()
+        except:
+            print("Could not execute query on table " + table_name)
 
 def main():
     connection = Connection()
@@ -76,7 +80,7 @@ def main():
     connection.drop_table_lazy("Activity")
     connection.drop_table_lazy("User")
     connection.create_tables()
-    #connection.show_tables()
+    # connection.show_tables()
 
 
 if __name__ == '__main__':

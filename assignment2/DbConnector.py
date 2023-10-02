@@ -14,32 +14,9 @@ class DbConnector:
     PASSWORD = "test123" // The password you set for said user
     """
 
-    def __init__(self,
-                 HOST="localhost",
-                 DATABASE="gps",
-                 USER="and",
-                 PASSWORD="123"):
+    def __init__(self):
         # Connect to the database
         try:
-            self.db_connection = mysql.connect(host=HOST, database=DATABASE, user=USER, password=PASSWORD, port=3306)
-            self.engine = create_engine('mysql+mysqlconnector://and:123@localhost:3306/gps', echo=False)  # engine = create_engine('dialect+driver://username:password@host:port/database', echo=False)
+            self.db_connection = create_engine('mysql+mysqlconnector://and:123@localhost:3306/gps', echo=False)  # engine = create_engine('dialect+driver://username:password@host:port/database', echo=False)
         except Exception as e:
             print("ERROR: Failed to connect to db:", e)
-
-        # Get the db cursor
-        self.cursor = self.db_connection.cursor()
-
-        print("Connected to:", self.db_connection.get_server_info())
-        # get database information
-        self.cursor.execute("select database();")
-        database_name = self.cursor.fetchone()
-        print("You are connected to the database:", database_name)
-        print("-----------------------------------------------\n")
-
-    def close_connection(self):
-        # close the cursor
-        self.cursor.close()
-        # close the DB connection
-        self.db_connection.close()
-        print("\n-----------------------------------------------")
-        print("Connection to %s is closed" % self.db_connection.get_server_info())

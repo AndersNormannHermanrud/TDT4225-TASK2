@@ -63,8 +63,8 @@ def fint_activity_and_trackpoints(file_path, user_id, activity_file,activities, 
 def insert_to_db(con, user_id, activities, activity_trackpoints):
     con.insert_row("User", ["id", "has_labels"], [int(user_id).__str__(), "False"])  # Insert the User
     activities = pd.DataFrame(activities, columns=["id","user_id", "transportation_mode", "start_date_time", "end_date_time"])
-    activities.to_sql(con=con.connection.engine, name="Activity", if_exists="append", index=False)  # Insert all activities for one user in bulk (technically sends an insert for each row, but its the fastest configuration)
-    activity_trackpoints.to_sql(con=con.connection.engine, name="TrackPoint", if_exists="append", index=False, chunksize=40000)  # Insert all trackpints for all activities for one user in bulk
+    activities.to_sql(con=con.engine, name="Activity", if_exists="append", index=False)  # Insert all activities for one user in bulk (technically sends an insert for each row, but its the fastest configuration)
+    activity_trackpoints.to_sql(con=con.engine, name="TrackPoint", if_exists="append", index=False, chunksize=40000)  # Insert all trackpints for all activities for one user in bulk
 
 
 def reset_and_fill_db():
