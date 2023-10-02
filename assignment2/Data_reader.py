@@ -2,7 +2,6 @@ import logging
 import os
 import pandas as pd
 import Connector
-from sqlalchemy import create_engine
 import time
 import warnings
 
@@ -64,8 +63,8 @@ def fint_activity_and_trackpoints(file_path, user_id, activity_file,activities, 
 def insert_to_db(con, user_id, activities, activity_trackpoints):
     con.insert_row("User", ["id", "has_labels"], [int(user_id).__str__(), "False"])  # Insert the User
     activities = pd.DataFrame(activities, columns=["id","user_id", "transportation_mode", "start_date_time", "end_date_time"])
-    activities.to_sql(con=engine, name="Activity", if_exists="append", index=False)  # Insert all activities for one user in bulk (technically sends an insert for each row, but its the fastest configuration)
-    activity_trackpoints.to_sql(con=engine, name="TrackPoint", if_exists="append", index=False, chunksize=40000)  # Insert all trackpints for all activities for one user in bulk
+    activities.to_sql(con=con.connection.engine, name="Activity", if_exists="append", index=False)  # Insert all activities for one user in bulk (technically sends an insert for each row, but its the fastest configuration)
+    activity_trackpoints.to_sql(con=con.connection.engine, name="TrackPoint", if_exists="append", index=False, chunksize=40000)  # Insert all trackpints for all activities for one user in bulk
 
 
 def reset_and_fill_db():
@@ -76,7 +75,6 @@ def reset_and_fill_db():
 
     Connector.main()  # Reset and reload db for testing purposes
     con = Connector.Connection()
-    engine = create_engine('mysql+mysqlconnector://and:123@localhost:3306/gps', echo=False)  # engine = create_engine('dialect+driver://username:password@host:port/database', echo=False)
 
     start_time = time.time()
     for user_id in os.listdir(os.curdir):
@@ -88,16 +86,9 @@ def reset_and_fill_db():
            activities, activity_trackpoints = fint_activity_and_trackpoints(os.path.join(path, activity_file), user_id, activity_file, activities, activity_trackpoints, labeled_ids)
         insert_to_db(con, user_id, activities, activity_trackpoints)
 
-        logging.info(" At time: " + time.strftime("%H:%M:%S",time.gmtime(time.time() - start_time)) + ", Inserted user with id: " + user_id + ", " + str(activities.shape[0]) + " Activities and " + str(activity_trackpoints.shape[0]) + " TrackPoints Successfully")
+        logging.info(" At time: " + time.strftime("%H:%M:%S",time.gmtime(time.time() - start_time)) + ", Inserted user with id: " + user_id + ", " + str(len(activities)) + " Activities and " + str(activity_trackpoints.shape[0]) + " TrackPoints Successfully")
     print("Execution time:", time.strftime("%H:%M:%S",time.gmtime(time.time() - start_time)))
 
-"""
-if (
-    start_date_time == label_start
-    and end_date_time == label_end
-):
-trans_mode = split[2]
-"""
 def main():
     reset_and_fill_db()
 
