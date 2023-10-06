@@ -87,7 +87,7 @@ def reset_and_fill_db():
         insert_to_db(con, user_id, activities, activity_trackpoints)
 
         logging.info(" At time: " + time.strftime("%H:%M:%S",time.gmtime(time.time() - start_time)) + ", Inserted user with id: " + user_id + ", " + str(len(activities)) + " Activities and " + str(activity_trackpoints.shape[0]) + " TrackPoints Successfully")
-    print("Execution time:", time.strftime("%H:%M:%S",time.gmtime(time.time() - start_time)))
+    #logging.info("Execution time:", time.strftime("%H:%M:%S",time.gmtime(time.time() - start_time)))
 
 def main():
     reset_and_fill_db()
