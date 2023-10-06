@@ -1,4 +1,6 @@
 from collections import defaultdict
+
+import numpy as np
 import pandas as pd
 from geopy.distance import geodesic
 from haversine import haversine
@@ -83,12 +85,17 @@ def task6(con):
     with con.engine.connect() as connection:
         result = connection.execute(text(
             """
-            SELECT transportation_mode, start_date_time, end_date_time, COUNT(*) AS count FROM Activity
+            SELECT id, transportation_mode, start_date_time, end_date_time, COUNT(*) AS count FROM Activity
             GROUP BY transportation_mode, start_date_time, end_date_time HAVING count > 1
             """))
         try:
+            i = 0
             for row in result:
                 print("Activity {0} is registered multiple times".format(row))
+                i+=1
+                if i>15:
+                    break
+            print("number of activities: {0}".format(len(result.fetchall())))
         except:
             print("No rows was returned")
 
@@ -96,7 +103,7 @@ def task6(con):
 def task7(con):
     """
     I am unsure if i am supposed to only return activities that has a transportation mode or not
-    If the latter is the case remove 'AND Activity.transportation_mode <> '' '
+    If the latter is the case add 'AND Activity.transportation_mode <> '' '
     :param con:
     :return:
     """
@@ -106,7 +113,7 @@ def task7(con):
             """
             SELECT User.id, Activity.transportation_mode, TIMESTAMPDIFF(MINUTE, start_date_time, end_date_time)
             FROM User JOIN Activity ON User.id = Activity.user_id
-            WHERE DATEDIFF(end_date_time, start_date_time) >= 1 AND Activity.transportation_mode <> ''
+            WHERE DATEDIFF(end_date_time, start_date_time) >= 1
             """))
         for id, mode, time in result:
             print("User {0}, activity {1}, time {2}".format(id,mode,time))
@@ -114,34 +121,32 @@ def task7(con):
 
 def task8(con):
     print("\n\nTASK 8")
-    query =  """
+    query = """
     SELECT user_id, TrackPoint.lon, TrackPoint.lat, TrackPoint.date_time 
     FROM Activity INNER JOIN TrackPoint ON Activity.id = TrackPoint.activity_id
     """
     trackpoints = con.engine.connect().execute(text(query))
     users = dict()
-    close_users = set()
-
     for line in trackpoints:
         user_id, lon, lat, date_time = line
-        users.setdefault(user_id, list()).append((lon, lat, date_time))
+        users.setdefault(user_id, []).append((lon, lat, date_time))
+    idx = index.Index()
+    for user_id, trackpoints in users.items():
+        for lon, lat, date_time in trackpoints:
+            idx.insert(user_id, (lon, lat, lon, lat), obj=date_time)
 
-    users = list(users.items())
-    for user_index_a in range(1, len(users)):
-        for user_index_b in range(user_index_a):
-            user_a_id, user_a_trackpoints = users[user_index_a]
-            user_b_id, user_b_trackpoints = users[user_index_b]
-            print("user_a={}, user_b={}, pairwise_trackpoint_comparisons: {}x{}".format(user_a_id, user_b_id, len(user_a_trackpoints), len(user_b_trackpoints)))
-            for user_a_lon, user_a_lat, user_a_date_time in user_a_trackpoints:
-                for user_b_lon, user_b_lat, user_b_date_time in user_b_trackpoints:
-                    distance = haversine((user_a_lat, user_a_lon), (user_b_lat, user_b_lon))
-                    if distance <= 0.05:
-                        seconds_delta = abs((user_a_date_time - user_b_date_time).total_seconds())
-                        if seconds_delta <= 30:
-                            close_users.add(user_a_id)
-                            close_users.add(user_b_id)
-                            #print("Number of close users found: {0}".format(len(close_users)))
-    print("Number of users that have been close to each other in time and space: {0}".format(len(close_users)))
+    close_users = set()
+    for user_id, trackpoints in users.items():
+        for lon, lat, date_time in trackpoints:
+            for potential_close_id in idx.intersection((lon-0.0005, lat-0.0005, lon+0.0005, lat+0.0005), objects=True):
+                if potential_close_id.id != user_id:
+                    potential_distance = haversine((lat, lon), (potential_close_id.bbox[1], potential_close_id.bbox[0]))
+                    if potential_distance <= 0.05:
+                        if abs((date_time - potential_close_id.object).total_seconds()) <= 30:
+                            close_users.add(user_id)
+                            close_users.add(potential_close_id.id)
+    print("Number of users that have been close to each other:", len(close_users))
+
 
 
 """ Scrapped due to high memory demand, with both the sparse and dense approach
@@ -194,7 +199,7 @@ def task9(con):
             """
             SELECT a.user_id, t.activity_id, t.id as trackpoint_id, t.altitude, t.date_time
             FROM TrackPoint t JOIN Activity a ON t.activity_id = a.id
-            ORDER BY a.user_id, t.activity_id, t.date_time;
+            ORDER BY a.user_id, t.activity_id, t.date_time
             """)).fetchall()
         altitude_gains = defaultdict(int)
         prev_row = None
@@ -209,19 +214,28 @@ def task9(con):
         print(top_users[:15])
 
 
+def approx_distance(row):
+    if pd.notna(row['next_lat']):
+        lat1, lon1, lat2, lon2 = np.radians(row['lat']), np.radians(row['lon']), np.radians(row['next_lat']), np.radians(row['next_lon'])
+        x = (lon2 - lon1) * np.cos(0.5 * (lat2 + lat1))
+        y = lat2 - lat1
+        return 6371.01 * np.sqrt(x*x + y*y)  # 6371.01 is Earth's radius in km
+    else:
+        return 0
+
 def task10(con):
     print("\n\nTASK 10")
     query = """
     SELECT a.user_id,a.transportation_mode,DATE(t.date_time) AS travel_date,t.lat,t.lon,t.date_time
     FROM Activity a JOIN TrackPoint t ON a.id = t.activity_id
-    ORDER BY a.user_id, a.transportation_mode, t.date_time;
+    ORDER BY a.user_id, a.transportation_mode, t.date_time
     """
     result = pd.read_sql(con=con.engine, sql=query)
     print("Data fetched")
     result['next_lat'] = result.groupby(['user_id', 'transportation_mode'])['lat'].shift(-1)
     result['next_lon'] = result.groupby(['user_id', 'transportation_mode'])['lon'].shift(-1)
     print("Data grouped")
-    result['distance'] = result.apply(lambda row: geodesic((row['lat'], row['lon']), (row['next_lat'], row['next_lon'])).km if pd.notna(row['next_lat']) else 0, axis=1)
+    result['distance'] = result.apply(approx_distance, axis=1)
     print("Data lamda applied")
     result = result.groupby(['user_id', 'transportation_mode', 'travel_date'])['distance'].sum().reset_index()
     result = result.groupby('transportation_mode').apply(lambda x: x.nlargest(1, 'distance')).reset_index(drop=True)
@@ -234,9 +248,9 @@ def task11(con):
     SELECT a.user_id, t1.activity_id, t1.date_time as start_time, t2.date_time as end_time
     FROM TrackPoint t1
     JOIN TrackPoint t2 ON t1.activity_id = t2.activity_id AND t1.id = t2.id - 1
-    JOIN Activity a ON t1.activity_id = a.id;
+    JOIN Activity a ON t1.activity_id = a.id
     """
-    df = pd.read_sql(con=con, sql=query)
+    df = pd.read_sql(con=con.engine, sql=query)
     df['time_diff'] = (df['end_time'] - df['start_time']).dt.total_seconds() / 60
     invalid_activities = df[df['time_diff'] >= 5]['activity_id'].unique()
     result = df[df['activity_id'].isin(invalid_activities)].groupby('user_id')['activity_id'].nunique().reset_index()
@@ -249,12 +263,15 @@ def task12(con):
     print("\n\nTASK 12")
     query = """
         SELECT user_id, transportation_mode
-        FROM Activity WHERE transportation_mode IS NOT NULL;
-        """
-    df = pd.read_sql(con=con, sql=query)
-    mode_counts = df.groupby(['user_id', 'transportation_mode']).size().reset_index(name='count')
-    sorted_modes = mode_counts.sort_values(by=['user_id', 'count'], ascending=[True, False])
-    result = sorted_modes.drop_duplicates(subset='user_id', keep='first').drop(columns='count')
+        FROM Activity 
+        WHERE transportation_mode IS NOT NULL AND transportation_mode <> ''
+        ORDER BY user_id
+    """
+    activities = pd.read_sql(con=con.engine, sql=query)
+    activities = activities.groupby(['user_id', 'transportation_mode']).size().reset_index(name='count')
+    idx = activities.groupby('user_id')['count'].idxmax()  # Get max count
+    result = activities.loc[idx][['user_id', 'transportation_mode']].rename(columns={'transportation_mode': 'most_used_transportation_mode'})
+    result = result.sort_values(by='user_id')
     print("Users with transportation mode and their most used mode:")
     print(result)
 
@@ -277,7 +294,7 @@ def main():
     :return:
     """
     con = Connector.Connection()
-    task1(con)
+    #task1(con)
     #task2(con)
     #task3(con)
     #task4(con)
@@ -287,8 +304,8 @@ def main():
     #task9(con)
     #task11(con)
     #task12(con)
-    task10(con)
-    #task8(con)
+    #task10(con)
+    task8(con)
 
 if __name__ == '__main__':
     main()

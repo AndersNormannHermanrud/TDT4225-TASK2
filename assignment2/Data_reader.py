@@ -81,11 +81,9 @@ def reset_and_fill_db():
         path = os.path.join(os.getcwd(), user_id, "Trajectory")
         activities = [] #activities = pd.DataFrame(columns=["id","user_id", "transportation_mode", "start_date_time", "end_date_time"])  # activities = [] #  Even though its more messy with multiple data types, avoiding a dataframe here decreases runtime
         activity_trackpoints = pd.DataFrame(columns=["activity_id","lat", "lon", "altitude", "date_time", "date_days"])
-
         for activity_file in os.listdir(path):
            activities, activity_trackpoints = fint_activity_and_trackpoints(os.path.join(path, activity_file), user_id, activity_file, activities, activity_trackpoints, labeled_ids)
         insert_to_db(con, user_id, activities, activity_trackpoints)
-
         logging.info(" At time: " + time.strftime("%H:%M:%S",time.gmtime(time.time() - start_time)) + ", Inserted user with id: " + user_id + ", " + str(len(activities)) + " Activities and " + str(activity_trackpoints.shape[0]) + " TrackPoints Successfully")
     #logging.info("Execution time:", time.strftime("%H:%M:%S",time.gmtime(time.time() - start_time)))
 
